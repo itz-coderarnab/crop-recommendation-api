@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Crop Recommendation System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
+        .btn-success { background-color: #2e7d32; border: none; }
+        .btn-success:hover { background-color: #1b5e20; }
+        .badge-custom { font-size: 0.9rem; padding: 0.5em 0.8em; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card p-4 mb-4 text-center">
+                    <h2 class="text-success fw-bold">🌱 Smart Crop Recommendation System</h2>
+                    <p class="text-muted">Enter soil values and optionally fetch live weather by city name!</p>
+                </div>
+
+                <div class="card p-4">
+                    <form id="cropForm">
+                        <!-- Weather Auto-Fetch Section -->
+                        <div class="p-3 mb-4 bg-light rounded border">
+                            <label class="form-label fw-bold text-primary">🌤️ Automatic Weather Capture</label>
+                            <div class="input-group mb-2">
+                                <input type="text" id="city" class="form-control" placeholder="Enter City Name (e.g. Nagpur, Kolkata, Delhi)">
+                                <button type="button" class="btn btn-primary" onclick="fetchWeather()">Fetch Weather</button>
+                            </div>
+                            <small id="weatherStatus" class="form-text text-muted">Fetches live Temperature & Humidity based on location.</small>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Nitrogen (N)</label>
+                                <input type="number" step="any" id="N" class="form-control" value="90" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Phosphorus (P)</label>
+                                <input type="number" step="any" id="P" class="form-control" value="42" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Potassium (K)</label>
+                                <input type="number" step="any" id="K" class="form-control" value="43" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Temperature (°C)</label>
+                                <input type="number" step="any" id="temperature" class="form-control" value="20.87" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Humidity (%)</label>
+                                <input type="number" step="any" id="humidity" class="form-control" value="82.00" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Soil pH</label>
+                                <input type="number" step="any" id="ph" class="form-control" value="6.50" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Rainfall (mm)</label>
+                                <input type="number" step="any" id="rainfall" class="form-control" value="202.93" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 mt-4 py-2 fs-5">Predict Best Crop</button>
+                    </form>
+
+                    <div id="resultCard" class="mt-4 p-3 rounded text-center d-none">
+                        <h4 class="mb-1">Recommended Crop: <span id="cropName" class="text-uppercase text-success fw-bold"></span></h4>
+                        <p class="mb-0 text-muted">Confidence Score: <span id="confidence"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchWeather() {
+            const city = document.getElementById('city').value;
+            const status = document.getElementById('weatherStatus');
+            if (!city) {
+                alert('Please enter a city name!');
+                return;
+            }
+            status.innerText = "Fetching weather data...";
+            status.className = "form-text text-primary";
+
+            try {
+                const response = await fetch(`/weather?city=${encodeURIComponent(city)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('temperature').value = data.temperature;
+                    document.getElementById('humidity').value = data.humidity;
+                    status.innerText = `Fetched for ${data.city_name}: Temp: ${data.temperature}°C, Humidity: ${data.humidity}%`;
+                    status.className = "form-text text-success fw-bold";
+                } else {
+                    status.innerText = data.detail || "Could not fetch weather.";
+                    status.className = "form-text text-danger";
+                }
+            } catch (err) {
+                status.innerText = "Error connecting to weather service.";
+                status.className = "form-text text-danger";
+            }
+        }
+
+        document.getElementById('cropForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                N: parseFloat(document.getElementById('N').value),
+                P: parseFloat(document.getElementById('P').value),
+                K: parseFloat(document.getElementById('K').value),
+                temperature: parseFloat(document.getElementById('temperature').value),
+                humidity: parseFloat(document.getElementById('humidity').value),
+                ph: parseFloat(document.getElementById('ph').value),
+                rainfall: parseFloat(document.getElementById('rainfall').value)
+            };
+
+            const res = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            const resultDiv = document.getElementById('resultCard');
+            if (res.ok) {
+                document.getElementById('cropName').innerText = data.recommended_crop;
+                document.getElementById('confidence').innerText = (data.confidence_score * 100).toFixed(1) + "%";
+                resultDiv.className = "mt-4 p-3 rounded text-center bg-success-subtle text-success border border-success";
+            } else {
+                alert('Error making prediction.');
+            }
+        });
+    </script>
+</body>
+</html>
